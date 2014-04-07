@@ -7,3 +7,5 @@ html(lang="en")
     body
         div#container!= container
         script(src='/js/bundle.js')
+        if isLive
+            script(src='//localhost:9999/livereload.js')

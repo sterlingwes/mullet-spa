@@ -22,4 +22,5 @@ Define routes and their handlers. Can be called multiple times before final Spa.
 
 Renders app, hands off to Jade for writing
 
+*	*opts* `Object` for build options like opts.live for live reloading webpack diffs
 *	*returns* `Object` a Promise

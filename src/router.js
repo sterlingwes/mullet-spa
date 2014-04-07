@@ -12,6 +12,7 @@ var React = require('react/addons')
   , Locations = Router.Locations
   , NotFound = Router.NotFound
   , Link = Router.Link
+  , Flash = require('libs/flash')
 ;
 
 module.exports = React.createClass({
@@ -47,7 +48,12 @@ module.exports = React.createClass({
               
         }.bind(this));
         
-        return Locations({ path: this.props.path, ref: "router" }, locations);
+        var path = typeof window === 'object' ? window.location.pathname : this.props.path;
+        
+        return React.DOM.div({}, [
+            Flash({key:'router-flash'}),
+            Locations({ key:'router-locations', path: path, ref: "router" }, locations)
+        ] );
     }
     
 });

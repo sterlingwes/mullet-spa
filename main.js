@@ -39,13 +39,14 @@ module.exports = function(jade, react, tasker) {
      * 
      * Renders app, hands off to Jade for writing
      * 
+     * @param {Object} opts for build options like opts.live for live reloading webpack diffs
      * @return {Object} a Promise
      */
-    Spa.prototype.build = function() {
+    Spa.prototype.build = function(opts) {
         
         // copy the client side src files to the build dir
         
-        this.tasker.copyFile( path.resolve(__dirname, './src') + '/*' , this.tasker.absoluteSrc('./build/prebuild/')[0] )
+        return this.tasker.copyFile( path.resolve(__dirname, './src') + '/*' , this.tasker.absoluteSrc('./build/prebuild/')[0] )
         
         // add handler requirements to router
         
@@ -78,7 +79,8 @@ module.exports = function(jade, react, tasker) {
                 templateFile:   path.resolve(__dirname, './templates/index.jade'),
                 options: { pretty: true },
                 data: {
-                    title:  this.app.info ? this.app.info.name || this.name : this.name
+                    title:  this.app.info ? this.app.info.name || this.name : this.name,
+                    isLive: typeof opts === 'object' && opts.live
                 }
             });
 
@@ -89,7 +91,7 @@ module.exports = function(jade, react, tasker) {
         }.bind(this))
         
         .then(function() {
-            return this.tasker.compileLocal();
+            return this.tasker.compileLocal(opts);
         }.bind(this))
         
         .catch(function(err) {
