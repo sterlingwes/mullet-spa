@@ -6,6 +6,10 @@
  * @exports a React component representing the root router of the App
  */
 
+if(typeof __webpack_public_path__ !== 'string') {
+    __webpack_public_path__ = '/js/';
+}
+
 var React = require('react/addons')
   , Router = require('react-router-component')
   , Location = Router.Location
@@ -34,21 +38,30 @@ module.exports = React.createClass({
     render: function() {
         
         var selfi = this
+          , path = this.props.path
+          //, path = typeof window === 'object' ? window.location.pathname : this.props.path
           , locations = this.props.routes.map(function(loc) {
+            
+            var routeParams = {
+                handler:    loc.handler,
+                path:       loc.path
+            };
               
-            if(!loc.handler || typeof loc.handler === 'string')
-                loc.handler = this.appCs.get(loc.handlerName);
+            if(!routeParams.handler || typeof routeParams.handler === 'string')
+                routeParams.handler = this.appCs.get(loc.handlerName);
               
             if(loc.notfound || loc.notFound)
                 return NotFound(loc);
             
-            loc.router = selfi.routerInstance;
+            routeParams.router = selfi.routerInstance;
             
-            return Location(loc);
+            if(this.props.initData && loc.path == this.props.initData.path) {
+                routeParams.initData = this.props.initData;
+            }
+            
+            return Location(routeParams);
               
         }.bind(this));
-        
-        var path = typeof window === 'object' ? window.location.pathname : this.props.path;
         
         return React.DOM.div({}, [
             Flash({key:'router-flash'}),

@@ -4,8 +4,8 @@ html(lang="en")
         meta(charset='utf-8')
         title= title
         meta(name='viewport',content='width=device-width, initial-scale=1')
-    body
-        div#container!= container
         script(src='/js/bundle.js')
         if isLive
             script(src='//localhost:9999/livereload.js')
+    body
+        div#container!= container
