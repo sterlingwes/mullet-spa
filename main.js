@@ -67,11 +67,12 @@ module.exports = function(jade, react, tasker, uri) {
     /*
      * ## Spa.renderRoute
      *
+     * @param {String} url (actual rendered path, not pattern as possibly in loc.path)
      * @param {Object} loc
      * @param {Array} routes
      * @return {String} html
      */
-    Spa.prototype.renderRoute = function(loc,routes, rec) {
+    Spa.prototype.renderRoute = function(url, loc, routes, rec) {
         
         var routeData
           , routerPath = loc.path.replace(/\[[a-z!]+\]/ig,'');
@@ -79,8 +80,9 @@ module.exports = function(jade, react, tasker, uri) {
         if(!rec) {
             _.find(routes, function(r) {
                 routeData = {
-                    data:   r.data,
-                    path:   r.path
+                    data:       r.data,
+                    path:       r.path,
+                    realPath:   url
                 };
                 
                 if(r.path == loc.path)
@@ -89,11 +91,13 @@ module.exports = function(jade, react, tasker, uri) {
         }
         else
             routeData = {
-                data:   rec,
-                path:   routerPath
+                data:       {_single:rec},
+                path:       routerPath,
+                realPath:   '/'+url
             };
         
         // this needs to match the initial data in the rendered browser source or react complains
+        // if that fails, something is different in the client code when rendered on the server/client
         //
         var ssbootData = {
              path:       routerPath,
@@ -140,11 +144,11 @@ module.exports = function(jade, react, tasker, uri) {
             var loc = this.locations[locname];
               
             if(loc.path=='/')
-                promise = this.tasker.writeFile('index.html', this.renderRoute(loc, passedRoutes));
+                promise = this.tasker.writeFile('index.html', this.renderRoute('/', loc, passedRoutes));
             else
                 promise = Promise.all(loc.data.map(function(rec) {
                     var url = uri.get(loc.path, rec);
-                    return this.tasker.writeFile( url, this.renderRoute(loc, passedRoutes, rec));
+                    return this.tasker.writeFile( url, this.renderRoute(url, loc, passedRoutes, rec));
                 }.bind(this)));
             
         }.bind(this));

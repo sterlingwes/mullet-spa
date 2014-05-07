@@ -42,6 +42,7 @@ Renders:
 
 ## Spa.renderRoute
 
+*	*url* `String` (actual rendered path, not pattern as possibly in loc.path)
 *	*loc* `Object` undefined
 *	*routes* `Array` undefined
 *	*returns* `String` html
