@@ -127,9 +127,26 @@ module.exports = function(jade, react, tasker, uri) {
      *
      * Render the routes server side
      *
+     * @param {Object} upRec (optional), only renders documents affected by record with this _id
      * @return {Object} Promise
      */
-    Spa.prototype.renderRoutes = function() {
+    Spa.prototype.renderRoutes = function(upRec) {
+        
+        // update location data with new rec
+        if(upRec) {
+            _.each(this.locations, function(loc, name) {
+                var foundId,
+                    found = _.find(loc.data, function(d,i) {
+                        if(d._id == upRec._id) {
+                            foundId = i;
+                            return true;
+                        }
+                    });
+                    
+                if(found)
+                    this.locations[name].data[foundId] = upRec;
+            }.bind(this));
+        }
         
         var passedRoutes = _.map(this.locations, function(route, name) {
            return _.extend({}, route, {
@@ -145,15 +162,32 @@ module.exports = function(jade, react, tasker, uri) {
               
             if(loc.path=='/')
                 promise = this.tasker.writeFile('index.html', this.renderRoute('/', loc, passedRoutes));
-            else
-                promise = Promise.all(loc.data.map(function(rec) {
+            else {
+                promise = Promise.all(_.without(loc.data.map(function(rec) {
+                    if(upRec && (!rec || rec._id !== upRec._id))
+                        return;
+                        
                     var url = uri.get(loc.path, rec);
                     return this.tasker.writeFile( url, this.renderRoute(url, loc, passedRoutes, rec));
-                }.bind(this)));
+                }.bind(this)), undefined));
+            }
             
         }.bind(this));
         
         return promise;
+    };
+    
+    /*
+     * ## Spa.publish
+     *
+     * Called after a model change to rewrite files.
+     *
+     * @param {String} type HTTP method name (GET/PUT/POST/DELETE) referring to op type
+     * @param {Object} rec updated record to lookup and re-render page for
+     */
+    Spa.prototype.publish = function(type, rec) {
+        if(type=='put')
+            this.renderRoutes(rec);
     };
     
     /*

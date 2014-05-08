@@ -53,7 +53,17 @@ Renders:
 
 Render the routes server side
 
+*	*upRec* `Object` (optional), only renders documents affected by record with this _id
 *	*returns* `Object` Promise
+
+****
+
+## Spa.publish
+
+Called after a model change to rewrite files.
+
+*	*type* `String` HTTP method name (GET/PUT/POST/DELETE) referring to op type
+*	*rec* `Object` updated record to lookup and re-render page for
 
 ****
 
