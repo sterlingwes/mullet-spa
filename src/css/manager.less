@@ -1,0 +1,52 @@
+.lireset {
+    list-style: none;
+    margin: 0; padding: 0;
+}
+
+.spamanager {
+    top: 0; left: 0; right: 0; bottom: 0;
+    margin: 10px;
+    overflow-y: auto;
+    
+    .closeBtn {
+        cursor: pointer;
+        position: absolute;
+        top: 5px;
+        right: 10px;
+        font-size: 1.7em;
+        color: #888;
+        
+        &:hover {
+            color: #111;
+        }
+    }
+    
+    .tabMenu, .tabMenu li, .tabPanes, .tabPanes li {
+        .lireset;
+    }
+    
+    .tabMenu li {
+        display: inline-block;
+        
+        .fakeLink {
+            padding: 4px 6px;
+            border-bottom: 1px solid #ddd;
+            text-decoration: none;
+            
+            &:hover {
+                background-color: #ccc;
+                border-bottom: 1px #ccc;
+            }
+        }
+    }
+    
+    .tabPanes {
+        > li {
+            display: none;
+            
+            &.active {
+                display: block;
+            }
+        }
+    }
+}

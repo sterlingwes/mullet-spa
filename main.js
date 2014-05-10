@@ -10,7 +10,50 @@ var _ = require('underscore')
   , path = require('path')
   , Promise = require('es6-promise').Promise;
 
-module.exports = function(jade, react, tasker, uri, rest) {
+module.exports = function(jade, react, tasker, uri, rest, server, db) {
+    
+    var PageFields = {
+            uri: {
+                type:   String
+            },
+            title: {
+                type:   String
+            },
+            body: {
+                type:   [Object]
+            },
+            created: {
+                type:       Date,
+                onCreate:   function() { return new Date(); }
+            },
+            updated: {
+                type:       Date,
+                onUpdate:   function() { return new Date(); }
+            },
+            records: {
+                type:   [String]
+            },
+            tags: {
+                type:   [String]
+            },
+            options: {
+                type:   Object
+            },
+            domain: {
+                type:   String
+            }
+        }
+        
+      , Pages = db.schema('spa_pages', {
+            fields: PageFields
+        });
+        
+    server.get('/', function(req,res) {
+        res.json({
+            host:   req.get('host'),
+            origin: req.get('origin')
+        });
+    });
     
     /*
      * ## Spa.constructor
@@ -22,6 +65,7 @@ module.exports = function(jade, react, tasker, uri, rest) {
         this.models = {};
         this.primary = '';
         this.data = [];
+        this.apis = [];
     }
     
     /*
@@ -50,12 +94,18 @@ module.exports = function(jade, react, tasker, uri, rest) {
      * @return {Object} this
      */
      Spa.prototype.addApi = function(name, server) {
-         rest.listen(server, {
-             name:       name,
-             schema:     this.models[name],
-             done:       this.publish
-         });
+         var resourceName = typeof name === 'object' ? 'pages' : name;
          
+         if(server && !this.server)
+            this.server = server;
+            
+         rest.listen(this.server || (typeof name === 'object' ? name : server), {
+             name:       resourceName,
+             schema:     this.models[name],
+             whitelist:  Object.keys(PageFields),
+             done:       this.publish.bind(this)
+         });
+         this.apis.push(resourceName);
          return this;
      };
      
@@ -69,6 +119,7 @@ module.exports = function(jade, react, tasker, uri, rest) {
       * @return {Object} Promise
       */
      Spa.prototype._fetchData = function() {
+         
          return new Promise(function(res,rej) {
              this.models[this.primary].find({}, function(err,recs) {
                  if(err)    rej(err);
@@ -112,6 +163,17 @@ module.exports = function(jade, react, tasker, uri, rest) {
     Spa.prototype.routes = function(routes, opts) {
         _.extend(this.locations, routes);
         this.buildOpts = opts;
+        
+        // make sure we have data & an API and use defaults if not
+        if(!this.primary)
+           this.addModel('pages', Pages);
+        
+        if(!this.apis.length) {
+           if(!this.server) {
+               this.server = server.getInstance(this.app.name);
+           }
+           this.addApi('pages');
+        }
         
         // fetch the data we need
         
@@ -170,6 +232,7 @@ module.exports = function(jade, react, tasker, uri, rest) {
         var routeData
           , routerPath = loc.path.replace(/\[[a-z!]+\]/ig,'');
         
+        // we're doing an index page
         if(!rec) {
             _.find(routes, function(r) {
                 routeData = {
@@ -182,6 +245,7 @@ module.exports = function(jade, react, tasker, uri, rest) {
                     return true;
             }.bind(this));
         }
+        // we're doing a page for a single rec
         else
             routeData = {
                 data:       {_single:rec},
@@ -241,6 +305,8 @@ module.exports = function(jade, react, tasker, uri, rest) {
                 
             if(found)
                 this.data[foundId] = upRec;
+            else
+                this.data.push(upRec); // new record
         }
         
         var passedRoutes = _.map(this.locations, function(route, name) {
@@ -279,7 +345,7 @@ module.exports = function(jade, react, tasker, uri, rest) {
      * @param {Object} rec updated record to lookup and re-render page for
      */
     Spa.prototype.publish = function(type, rec) {
-        if(type=='put')
+        if(['put','post'].indexOf(type)>=0)
             this.renderRoutes(rec);
     };
     
