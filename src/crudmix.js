@@ -16,6 +16,7 @@ module.exports = {
         net.ajax({
             url:    '/api/wesquire/pages',
             type:   'PUT',
+            dataType: 'json',
             data:   data,
             complete: done
         });

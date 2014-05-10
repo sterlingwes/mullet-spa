@@ -19,11 +19,14 @@ module.exports = React.createClass({
         ClientCrud
     ],
     
+    noTextContent: '<span class="mltplaceholder">Add your text to this block by clicking EDIT.</span>',
+    
     displayName:    'Post',
     
     getInitialState: function() {
         return {
-            post: false
+            post: false,
+            editTitle: false
         };
     },
     
@@ -38,36 +41,63 @@ module.exports = React.createClass({
         this.setState({ adding: true });
     },
     
+    editTitle: function(event) {
+        
+        if(this.props.user) {
+            event.stopPropagation();
+        }
+        
+        if(!this.state.editTitle) {
+            this.setState({ editTitle: true });
+            $(document).on('click', this.editTitleDone);
+        }
+    },
+    
+    editTitleDone: function(event) {
+        if(this.state.editTitle) {
+            this.setState({ editTitle: false });
+            if(!$(event.target).closest('#post-title').length)
+                $(document).off('click', this.handleEdit);
+        }
+    },
+    
     addBlock: function(event) {
         var currentPost = this.state.post || this.props.data,
             type = event.target.id.replace(/^addBlock_/,'');
             
-        currentPost.body.push({ type: type, content: '<span class="mltplaceholder">Add your text to this block by clicking EDIT.</span>' });
+        currentPost.body.push({ type: type, content: this.noTextContent });
             
         this.setState({
             adding: false,
             post:   currentPost
+        }, function() {
+            console.log('added block', this.state);
         });
     },
     
-    saveBlock: function(data, cb) {
-        var currentPost = this.state.post || this.props.data;
-        if(data.id!=='new') {
-            // actually save changes to existing post
-        }
-        else cb(false);
-        
-        var field = Utils.dotGet(currentPost, data.field);
+    saveBlock: function(data) {
+        var currentPost = this.state.post || this.props.data
+          , field = Utils.dotGet(currentPost, data.field);
+          
         field.content = data.content;
+        if(!data.content)
+            field.content = this.noTextContent;
+            
         this.setState({
             post:   currentPost
         });
     },
     
     publish: function() {
-        this.saveNew(this.state.post, function(res) {
-            console.log('got back', res);
-        });
+        var post = this.state.post;
+        if(post && post._id)
+            this.saveEdit(post, function(res) {
+                console.log('got back', res);
+            });
+        else
+            this.saveNew(this.state.post, function(res) {
+                console.log('got back', res);
+            });
     },
     
     updateTitle: function() {
@@ -126,20 +156,23 @@ module.exports = React.createClass({
                 );
             else
                 addBlock = <div className="addBlock" onClick={this.toggleAddMode}>Add Content Block</div>;
-                
-            title = <input type="text" name="title" id="post-title" ref="postTitle" onChange={this.updateTitle} value={p.title} />;
+            
+            if(this.state.editTitle)    
+                title = <input type="text" className="postTitleInput" name="title" id="post-title" ref="postTitle" onChange={this.updateTitle} value={p.title} />;
+            else
+                title = <h2 id={'postTitle_'+p._id} onClick={this.editTitle}>{p.title}</h2>;
             
             if(this.state.post && (this.state.post.body||[]).length) {
                 buttons.push(<div className="postBtn publish" onClick={this.publish} key="postOptPublish">Publish</div>);
             }
         }
         else
-            title = <Link href={ link } dangerouslySetInnerHTML={{__html:p.title}} />;
+            title = <h2 id={'postTitle_'+p._id} onClick={this.editTitle}><Link href={ link } dangerouslySetInnerHTML={{__html:p.title}} /></h2>;
           
-        var blocks = p.body.map(function(part,partNo) {
+        var blocks = (p.body||[]).map(function(part,partNo) {
             switch(part.type) {
                 case 'md':
-                    if(part.content.indexOf('<span class="mltplaceholder">')===0) {
+                    if(!this.props.user && part.content.indexOf('<span class="mltplaceholder">')===0) {
                         return;
                     }
                     return (
@@ -152,7 +185,7 @@ module.exports = React.createClass({
                              
         return this.transferPropsTo(
             <div className={classes} id={postId}>
-                <h2>{ title }</h2>
+                { title }
                 <div className="postOptions">
                     { buttons }
                 </div>
