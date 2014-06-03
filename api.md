@@ -19,6 +19,23 @@ Registers a schema object for use in populating locations / routes (primary pagi
 
 ****
 
+## Spa.addData
+
+Shorthand for adding data to the default pages collection during testing
+
+*	*data* `Array,Object` undefined
+*	*returns* `Object` Promise
+
+****
+
+## Spa.resetData
+
+Resets data added to the default page collection (only those items in the 'testing' domain are removed)
+
+*	*returns* `Object` Promise
+
+****
+
 ## Spa.addApi
 
 Uses an added model to generate common REST API endpoints
@@ -33,8 +50,8 @@ Uses an added model to generate common REST API endpoints
 
 Used internally to fetch data to populate routes during the Spa.routes() call.
 
-TODO: support fetching data for all models (not just primary), also specifying selector
-
+*	*selector* `Object` undefined
+*	*model* `String` that defaults to this.primary (pages=>spa_pages)
 *	*returns* `Object` Promise
 
 ****
@@ -42,8 +59,9 @@ TODO: support fetching data for all models (not just primary), also specifying s
 ## Spa.routes
 
 Define routes and their handlers. Can be called multiple times before final Spa.build().
+Prebuilds the router file with references to the route handlers provided.
 
-Example:
+Example (TODO: needs to be updated):
      spa.routes({
          'post': {
              path:       '/[YYYY!created]:year/[MM!created]:month/:title',
@@ -72,16 +90,16 @@ Renders:
 
 ****
 
-, this.tasker.absoluteSrc('./build/prebuild/')[0], '-r' );
-        }.bind(this))
+, this.tasker.absoluteSrc('./build/prebuild/')[0], '-r' )
         
         // add handler requirements to router
         
         .then(function() {
             var d = [ "\n\nfunction Components() {" ];
             Object.keys(this.locations).forEach(function(name) {
-                var loc = this.locations[name];
-                d.push("\tthis['" + name + "'] = require('" + this.tasker.absoluteSrc( loc.handler ) + "');");
+                var loc = this.locations[name]
+                  , reqPath = this.tasker.absoluteSrc( loc.handler )[0].replace(/\\+/g,'/');
+                d.push("\tthis['" + name + "'] = require('" + reqPath + "');");
             }.bind(this));
             d.push("}");
             d.push("Components.prototype.get = function(name) { return this[name]; };\n");

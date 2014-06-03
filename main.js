@@ -47,13 +47,6 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
       , Pages = db.schema('spa_pages', {
             fields: PageFields
         });
-        
-    server.get('/', function(req,res) {
-        res.json({
-            host:   req.get('host'),
-            origin: req.get('origin')
-        });
-    });
     
     /*
      * ## Spa.constructor
@@ -61,10 +54,9 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
     function Spa(app) {
         this.app = app;
         this.locations = {};
-        this.tasker = tasker(app);
+        this.tasker = typeof tasker !== 'function' ? tasker : tasker(app);
         this.models = {};
         this.primary = '';
-        this.data = [];
         this.apis = [];
     }
     
@@ -82,6 +74,67 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
          this.primary = name;
          
          return this;
+     };
+     
+     /*
+      * ## Spa.addData
+      *
+      * Shorthand for adding data to the default pages collection during testing
+      *
+      * @param {Array|Object} data
+      * @return {Object} Promise
+      */
+     Spa.prototype.addData = function(data) {
+         var items = _.isArray(data) ? data : [data]
+           , promises = [];
+           
+         items.forEach(function(i) {
+             promises.push(new Promise(function(res,rej) {
+                 var np = new Pages(i);
+                 np.save(function(err,r) {
+                     if(err)    return rej(err);
+                     else       res(r);
+                 });
+             }));
+         });
+         
+         return Promise.all(promises);
+     };
+     
+     Spa.prototype.updateData = function(data) {
+       var items = _.isArray(data) ? data : [data]
+         , promises = [];
+         
+       items.forEach(function(i) {
+           promises.push(new Promise(function(res,rej) {
+              var chg = { $set: _.omit(i,'_id', 'created') };
+              Pages.update({_id:i._id}, chg, function(err) {
+                if(err) return rej(err);
+                Pages.find({_id:i._id}, function(err, r) {
+                  if(err) return rej(err);
+                  res(r && r.length ? r[0] : r);
+                });
+              });
+           }));
+       });
+       
+       return Promise.all(promises);
+     };
+     
+    /*
+     * ## Spa.resetData
+     *
+     * Resets data added to the default page collection (only those items in the 'testing' domain are removed)
+     *
+     * @return {Object} Promise
+     */
+     Spa.prototype.resetData = function() {
+         return new Promise(function(res,rej) {
+             Pages.remove({domain:'testing'}, function(err) {
+                 if(err)    return rej(err);
+                 res();
+             });
+         });
      };
      
      /*
@@ -114,14 +167,14 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
       *
       * Used internally to fetch data to populate routes during the Spa.routes() call.
       *
-      * TODO: support fetching data for all models (not just primary), also specifying selector
-      *
+      * @param {Object} selector
+      * @param {String} model that defaults to this.primary (pages=>spa_pages)
       * @return {Object} Promise
       */
-     Spa.prototype._fetchData = function() {
+     Spa.prototype._fetchData = function(selector,model) {
          
          return new Promise(function(res,rej) {
-             this.models[this.primary].find({}, function(err,recs) {
+             this.models[model||this.primary].find(selector||{}, function(err,recs) {
                  if(err)    rej(err);
                  else       res(recs);
              });
@@ -132,8 +185,9 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
      * ## Spa.routes
      * 
      * Define routes and their handlers. Can be called multiple times before final Spa.build().
+     * Prebuilds the router file with references to the route handlers provided.
      * 
-     * Example:
+     * Example (TODO: needs to be updated):
      *      spa.routes({
      *          'post': {
      *              path:       '/[YYYY!created]:year/[MM!created]:month/:title',
@@ -175,25 +229,18 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
            this.addApi('pages');
         }
         
-        // fetch the data we need
-        
-        return this._fetchData().then(function(recs) {
-            this.data = recs;
-        }.bind(this))
-        
         // copy the client side src files to the build dir
         
-        .then(function() {
-            return this.tasker.copyFile( path.resolve(__dirname, './src') + '/*' , this.tasker.absoluteSrc('./build/prebuild/')[0], '-r' );
-        }.bind(this))
+        return this.tasker.copyFile( path.resolve(__dirname, './src') + '/*' , this.tasker.absoluteSrc('./build/prebuild/')[0], '-r' )
         
         // add handler requirements to router
         
         .then(function() {
             var d = [ "\n\nfunction Components() {" ];
             Object.keys(this.locations).forEach(function(name) {
-                var loc = this.locations[name];
-                d.push("\tthis['" + name + "'] = require('" + this.tasker.absoluteSrc( loc.handler ) + "');");
+                var loc = this.locations[name]
+                  , reqPath = this.tasker.absoluteSrc( loc.handler )[0].replace(/\\+/g,'/');
+                d.push("\tthis['" + name + "'] = require('" + reqPath + "');");
             }.bind(this));
             d.push("}");
             d.push("Components.prototype.get = function(name) { return this[name]; };\n");
@@ -233,10 +280,10 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
           , routerPath = loc.path.replace(/\[[a-z!]+\]/ig,'');
         
         // we're doing an index page
-        if(!rec) {
+        if(_.isArray(rec)) {
             _.find(routes, function(r) {
                 routeData = {
-                    data:       this.data,
+                    data:       rec,
                     path:       r.path,
                     realPath:   url
                 };
@@ -268,8 +315,8 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
          if(routerPath!='/')
             console.log(JSON.stringify(ssbootData,null,'  ')); */
          
-        this.router = new react.Renderer('container', this.tasker.absoluteSrc('./build/prebuild/router.js')[0], ssbootData);
-        
+        var router = new react.Renderer('container', this.tasker.absoluteSrc('./build/prebuild/router.js')[0], ssbootData);
+
         var renderer = new jade.Renderer({
             templateFile:   path.resolve(__dirname, loc.template || './templates/index.jade'),
             options: { pretty: true },
@@ -279,7 +326,7 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
             }
         });
         
-        var html = renderer.addReact(this.router).render();
+        var html = renderer.addReact(router).render();
         return html;
     };
     
@@ -293,47 +340,35 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
      */
     Spa.prototype.renderRoutes = function(upRec) {
         
-        // update location data with new rec
-        if(upRec) {
-            var foundId,
-                found = _.find(this.data, function(d,i) {
-                    if(d._id == upRec._id) {
-                        foundId = i;
-                        return true;
-                    }
-                });
-                
-            if(found)
-                this.data[foundId] = upRec;
-            else
-                this.data.push(upRec); // new record
-        }
-        
         var passedRoutes = _.map(this.locations, function(route, name) {
            return _.extend({}, route, {
                 path:           route.path.replace(/\[[a-z!]+\]/ig,''),
                 handlerName:    name
            });
         })
-          , promise;
+          , promises = [];
         
         _.each(this.locations, function(loc) {
-              
-            if(loc.path=='/') // TODO: probably shouldn't make root page the "blog index", need to handle possibly multiple user-defined index / cateogory  pages
-                promise = this.tasker.writeFile('index.html', this.renderRoute('/', loc, passedRoutes));
+            
+            if(loc.path.indexOf(':')==-1) // if there's vars in the path we're likely not an index / list of items
+                promises.push( this._fetchData(loc.find, loc.model).then(function(data) {
+                  return this.tasker.writeFile(loc.path=='/' ? 'index.html' : loc.path, this.renderRoute(loc.path, loc, passedRoutes, data));
+                }.bind(this)));
             else {
-                promise = Promise.all(_.without(this.data.map(function(rec) {
-                    if(upRec && (!rec || rec._id !== upRec._id))
+                promises.push(this._fetchData(loc.find, loc.model).then(function(data) {
+                  Promise.all(_.without(data.map(function(rec) {
+                    if(upRec && (!rec || rec._id !== upRec._id)) // if we're publishing an update, only write the affected record files
                         return;
                         
                     var url = uri.get(loc.path, rec);
                     return this.tasker.writeFile( url, this.renderRoute(url, loc, passedRoutes, rec));
-                }.bind(this)), undefined));
+                  }.bind(this)), undefined));
+                }.bind(this)));
             }
-            
+          
         }.bind(this));
         
-        return promise;
+        return Promise.all(promises);
     };
     
     /*
@@ -346,7 +381,7 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
      */
     Spa.prototype.publish = function(type, rec) {
         if(['put','post'].indexOf(type)>=0)
-            this.renderRoutes(rec);
+            return this.renderRoutes(rec);
     };
     
     return Spa;
