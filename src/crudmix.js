@@ -20,5 +20,13 @@ module.exports = {
             data:   data,
             complete: done
         });
+    },
+    
+    deletePage: function(id, done) {
+      net.ajax({
+        url:    '/api/wesquire/pages/' + id,
+        type:   'DELETE',
+        complete: done
+      });
     }
 };

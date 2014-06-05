@@ -380,8 +380,8 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
      * @param {Object} rec updated record to lookup and re-render page for
      */
     Spa.prototype.publish = function(type, rec) {
-        if(['put','post'].indexOf(type)>=0)
-            return this.renderRoutes(rec);
+        if(['put','post','delete'].indexOf(type)>=0)
+            return this.renderRoutes(rec || {});
     };
     
     return Spa;

@@ -13,6 +13,10 @@ var React = require('react/addons')
 
 require('./css/post.less');
 
+function moveTo(array,from,to) {
+  array.splice(to, 0, array.splice(from, 1)[0]);
+}
+
 module.exports = React.createClass({
     
     mixins: [
@@ -90,7 +94,7 @@ module.exports = React.createClass({
     
     publish: function() {
         var post = this.state.post;
-        if(post && post._id)
+        if(post && post._id !== 'new')
             this.saveEdit(post, function(res) {
                 console.log('got back', res);
             });
@@ -98,6 +102,26 @@ module.exports = React.createClass({
             this.saveNew(this.state.post, function(res) {
                 console.log('got back', res);
             });
+    },
+    
+    order: function() {
+      /*
+      if(this.state.ordering && this.state.post)
+        this.saveEdit(this.state.post, function(res) {
+          console.log('saved ordering', res);
+        });*/
+        
+      this.setState({ ordering: ! this.state.ordering });
+    },
+    
+    delete: function() {
+      if(this.state.deleting) {
+        this.deletePage((this.state.post||this.props.data)._id, function(res) {
+          console.log('done deleting');
+        });
+      }
+      
+      this.setState({ deleting: ! this.state.deleting });
     },
     
     updateTitle: function() {
@@ -109,6 +133,46 @@ module.exports = React.createClass({
         this.setState({
             post:   currentPost
         });
+    },
+    
+    moveBlock: function(index, direction) {
+      var currentPost = this.state.post || this.props.data
+        , to = index + direction
+        , len = currentPost.body.length;
+        
+      if(to<0)    to = len-1;
+      if(to>=len) to = 0;
+      
+      moveTo(currentPost.body, index, to);
+      this.setState({
+        post: currentPost
+      });
+
+    },
+    
+    reOrderBlock: function(index) {
+      var ctx = this;
+      return {
+        up: function() {
+          ctx.moveBlock.call(ctx, index, -1);
+        },
+        down: function() {
+          ctx.moveBlock.call(ctx, index, 1);
+        }
+      };
+    },
+    
+    deleteBlock: function(index) {
+      var currentPost = this.state.post || this.props.data
+        , body = currentPost.body
+        , ctx = this;
+      
+      return function() {
+        if(body[index]) {
+          body.splice(index,1);
+          ctx.setState({ post: currentPost });
+        }
+      };
     },
     
     render: function() {
@@ -163,11 +227,17 @@ module.exports = React.createClass({
                 title = <h2 id={'postTitle_'+p._id} onClick={this.editTitle}>{p.title}</h2>;
             
             if(this.state.post && (this.state.post.body||[]).length) {
-                buttons.push(<div className="postBtn publish" onClick={this.publish} key="postOptPublish">Publish</div>);
+                buttons.push(<div className="postBtn publish" onClick={this.publish} key="postOptPublish">Save &amp; Publish</div>);
             }
+            
+            buttons.push(<div className="postBtn reorder" onClick={this.order} key="postOptReorder">{this.state.ordering ? 'Done Ordering' : 'Reorder'}</div>);
+            buttons.push(<div className="postBtn delete" onClick={this.delete} key="postOptDelete">{this.state.deleting ? 'Delete All' : 'Delete'}</div>);
         }
         else
             title = <h2 id={'postTitle_'+p._id} onClick={this.editTitle}><Link href={ link } dangerouslySetInnerHTML={{__html:p.title}} /></h2>;
+          
+        var ordering = this.state.ordering ? this.reOrderBlock : function() { return false; }
+          , deleting = this.state.deleting ? this.deleteBlock : function() { return false; };
           
         var blocks = (p.body||[]).map(function(part,partNo) {
             switch(part.type) {
@@ -176,7 +246,7 @@ module.exports = React.createClass({
                         return;
                     }
                     return (
-                     <Editable key={ partNo } editable={!!this.props.user} options={{ id: p._id, fieldName: 'body.'+partNo, block: part, save: this.saveBlock }}>
+                     <Editable key={ partNo } editable={!!this.props.user} ordering={ordering(partNo)} deleting={deleting(partNo)} options={{ id: p._id, fieldName: 'body.'+partNo, block: part, save: this.saveBlock }}>
                          <Markdown md={decodePost(part.content)} />
                      </Editable>
                     );
