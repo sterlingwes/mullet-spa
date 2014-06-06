@@ -46,6 +46,24 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
         
       , Pages = db.schema('spa_pages', {
             fields: PageFields
+        })
+        
+      , SitemapFields = {
+          uri:    { type: String },
+          title:  { type: String },
+          type:   { type: String },
+          pages:  { type: [String] },
+          domain: { type: String },
+          time:   {
+            type: Date, 
+            onCreate: function() { return new Date(); },
+            onUpdate: function() { return new Date(); }
+          },
+          updated: { type: Date }
+        }
+        
+      , Sitemap = db.schema('spa_sitemap', {
+          fields: SitemapFields
         });
     
     /*
@@ -70,10 +88,11 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
      * @return {Object} this
      */
      Spa.prototype.addModel = function(name, schema) {
-         this.models[name] = schema;
-         this.primary = name;
+        this.models[name] = schema;
+        if(!this.primary)
+          this.primary = name;
          
-         return this;
+        return this;
      };
      
      /*
@@ -158,6 +177,7 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
              whitelist:  Object.keys(PageFields),
              done:       this.publish.bind(this)
          });
+         
          this.apis.push(resourceName);
          return this;
      };
@@ -221,12 +241,15 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
         // make sure we have data & an API and use defaults if not
         if(!this.primary)
            this.addModel('pages', Pages);
+           
+        this.addModel('sitemap', Sitemap);
         
         if(!this.apis.length) {
            if(!this.server) {
                this.server = server.getInstance(this.app.name);
            }
            this.addApi('pages');
+           this.addApi('sitemap');
         }
         
         // copy the client side src files to the build dir
@@ -245,6 +268,18 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
             d.push("}");
             d.push("Components.prototype.get = function(name) { return this[name]; };\n");
             return this.tasker.appendFile( 'router.js', d.join("\n"), this.tasker.absoluteSrc('./build/prebuild')[0] );
+        }.bind(this))
+        
+        // clear our sitemap, we're building from scratch
+        // TODO: shouldn't burn everything on server restart.. need to find a better way to purge / refresh
+        
+        .then(function() {
+          return new Promise(function(res,rej) {
+            Sitemap.remove({}, function(err) {
+              if(err) rej(err);
+              else    res();
+            });
+          }.bind(this));
         }.bind(this))
         
         // build router with React
@@ -348,11 +383,15 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
         })
           , promises = [];
         
-        _.each(this.locations, function(loc) {
+        _.each(this.locations, function(loc, locType) {
             
             if(loc.path.indexOf(':')==-1) // if there's vars in the path we're likely not an index / list of items
                 promises.push( this._fetchData(loc.find, loc.model).then(function(data) {
-                  return this.tasker.writeFile(loc.path=='/' ? 'index.html' : loc.path, this.renderRoute(loc.path, loc, passedRoutes, data));
+                  if(!data || !data.length) return;
+                  var ids = _.pluck(data, '_id')
+                    , url = loc.path=='/' ? 'index.html' : loc.path;
+                  Sitemap.insert({ uri: url, type: locType, pages: ids, domain: data[0].domain });
+                  return this.tasker.writeFile(url, this.renderRoute(loc.path, loc, passedRoutes, data));
                 }.bind(this)));
             else {
                 promises.push(this._fetchData(loc.find, loc.model).then(function(data) {
@@ -361,6 +400,7 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
                         return;
                         
                     var url = uri.get(loc.path, rec);
+                    Sitemap.insert({ uri: url, title: rec.title, type: locType, pages: [rec._id], domain: rec.domain, updated: rec.updated });
                     return this.tasker.writeFile( url, this.renderRoute(url, loc, passedRoutes, rec));
                   }.bind(this)), undefined));
                 }.bind(this)));

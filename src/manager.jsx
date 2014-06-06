@@ -18,10 +18,19 @@ module.exports = React.createClass({
     
     getInitialState: function() {
         return {
-            pages:      [],
+            pages:      false,
             message:    {},
             tab:        'tab_pages'
         };
+    },
+    
+    componentWillMount: function() {
+      net.ajax({
+        url:  '/api/wesquire/sitemap',
+        complete: function(res) {
+          if(res.sitemap) this.setState({ pages: res.sitemap });
+        }.bind(this)
+      });
     },
     
     alert: function(msg) {
@@ -54,10 +63,17 @@ module.exports = React.createClass({
     },
     
     render: function() {
-                     
-        var pages = this.state.pages.map(function(p,pi) {
-            return <li key={pi}>{ p.title }</li>;
-        });
+                    
+        var pages;
+        if(!this.state.pages)
+          pages = <p>Loading...</p>;
+        else
+          pages = this.state.pages.map(function(p,pi) {
+              return <li key={pi}>{ p.title || '[index page]' }</li>;
+          });
+          
+        if(pages.length)
+          pages = <ul>{ pages }</ul>;
                              
         return this.transferPropsTo(
             <div className="spamanager">
@@ -74,7 +90,6 @@ module.exports = React.createClass({
                 </ul>
                 <ul className="tabPanes">
                     <li className={this.state.tab=='tab_pages' ? 'active' : ''}>
-                        <p>Pages!!</p>
                         { pages }
                     </li>
                     <li className={this.state.tab=='tab_add' ? 'active' : ''}>

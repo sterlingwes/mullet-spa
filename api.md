@@ -106,6 +106,18 @@ Renders:
             return this.tasker.appendFile( 'router.js', d.join("\n"), this.tasker.absoluteSrc('./build/prebuild')[0] );
         }.bind(this))
         
+        // clear our sitemap, we're building from scratch
+        // TODO: shouldn't burn everything on server restart.. need to find a better way to purge / refresh
+        
+        .then(function() {
+          return new Promise(function(res,rej) {
+            Sitemap.remove({}, function(err) {
+              if(err) rej(err);
+              else    res();
+            });
+          }.bind(this));
+        }.bind(this))
+        
         // build router with React
         // and...
         // render main page with Jade
