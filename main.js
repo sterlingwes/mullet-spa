@@ -387,10 +387,12 @@ module.exports = function(jade, react, tasker, uri, rest, server, db) {
             
             if(loc.path.indexOf(':')==-1) // if there's vars in the path we're likely not an index / list of items
                 promises.push( this._fetchData(loc.find, loc.model).then(function(data) {
-                  if(!data || !data.length) return;
+                  if(!data) data = [];
                   var ids = _.pluck(data, '_id')
-                    , url = loc.path=='/' ? 'index.html' : loc.path;
-                  Sitemap.insert({ uri: url, type: locType, pages: ids, domain: data[0].domain });
+                    , url = loc.path=='/' ? 'index.html' : loc.path + '.html';
+                  if(data[0])
+                    Sitemap.insert({ uri: url, type: locType, pages: ids, domain: data[0].domain, search: loc.find });
+                    
                   return this.tasker.writeFile(url, this.renderRoute(loc.path, loc, passedRoutes, data));
                 }.bind(this)));
             else {

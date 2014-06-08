@@ -1,6 +1,7 @@
 /** @jsx React.DOM */
 
 var React = require('react/addons')
+  , Link = require('react-router-component').Link
   , cx = React.addons.classSet
   , net = typeof window === 'object' ? require('imports?win=>window!libs/ajax') : {ajax:function(){}}
   , Form = require('libs/forms')
@@ -69,7 +70,8 @@ module.exports = React.createClass({
           pages = <p>Loading...</p>;
         else
           pages = this.state.pages.map(function(p,pi) {
-              return <li key={pi}>{ p.title || '[index page]' }</li>;
+              console.log(p);
+              return <li key={pi}><Link href={'/'+p.uri.replace(/\.html$/,'')}>{ p.title || '['+p.type+']' }</Link></li>;
           });
           
         if(pages.length)
@@ -93,7 +95,7 @@ module.exports = React.createClass({
                         { pages }
                     </li>
                     <li className={this.state.tab=='tab_add' ? 'active' : ''}>
-                        <Post data={{title:'Untitled Post', _id:'new', body:[]}} user={this.props.user} />
+                        <Post data={{title:'Untitled Post', _id:'new', body:[]}} user={this.props.user} isEditing={true} />
                     </li>
                 </ul>
             </div>

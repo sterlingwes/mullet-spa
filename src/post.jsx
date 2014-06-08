@@ -7,6 +7,7 @@ var React = require('react/addons')
   , Editable = require('libs/editable/index.jsx')
   , Uri = new (require('apps/uri/pattern.js'))('/[YYYY!created]:year/[MM!created]:month/:title')
   , Utils = require('apps/wesquire/src/utils')
+  , TagInput = require('react-taginput')
   , decodePost = Utils.decodePost
   , ClientCrud = require('./crudmix')
 ;
@@ -30,7 +31,8 @@ module.exports = React.createClass({
     getInitialState: function() {
         return {
             post: false,
-            editTitle: false
+            editTitle: false,
+            isEditing:  this.props.isEditing || false
         };
     },
     
@@ -41,13 +43,20 @@ module.exports = React.createClass({
         };
     },
     
+    startEdit: function() {
+      if(this.state.deleting)
+        return this.setState({ deleting: false });
+        
+      this.setState({ isEditing: !this.state.isEditing });
+    },
+    
     toggleAddMode: function() {
         this.setState({ adding: true });
     },
     
     editTitle: function(event) {
         
-        if(this.props.user) {
+        if(this.state.isEditing) {
             event.stopPropagation();
         }
         
@@ -63,6 +72,14 @@ module.exports = React.createClass({
             if(!$(event.target).closest('#post-title').length)
                 $(document).off('click', this.handleEdit);
         }
+    },
+    
+    changeTags: function(tags) {
+      var post = this.state.post || this.props.data;
+      post.tags = tags;
+      this.setState({
+        post: post
+      });
     },
     
     addBlock: function(event) {
@@ -95,22 +112,17 @@ module.exports = React.createClass({
     publish: function() {
         var post = this.state.post;
         if(post && post._id !== 'new')
-            this.saveEdit(post, function(res) {
-                console.log('got back', res);
-            });
+            this.saveEdit(post, this.publishDone);
         else
-            this.saveNew(this.state.post, function(res) {
-                console.log('got back', res);
-            });
+            this.saveNew(this.state.post, this.publishDone);
+    },
+    
+    publishDone: function(res) {
+      console.log('done publishing', res);
+      this.setState({ isEditing: false });
     },
     
     order: function() {
-      /*
-      if(this.state.ordering && this.state.post)
-        this.saveEdit(this.state.post, function(res) {
-          console.log('saved ordering', res);
-        });*/
-        
       this.setState({ ordering: ! this.state.ordering });
     },
     
@@ -184,11 +196,12 @@ module.exports = React.createClass({
           , title
           , buttons = []
           , postId = 'post-'+p._id
+          , tags
           , classes = cx({
               'postbox':        true
           });
           
-        if(this.props.user) {
+        if(this.state.isEditing) {
             if(this.state.adding === true)
                 addBlock = (
                     <div id={'addBlock-'+p._id} className="addBlockOptions" onClick={this.addBlock}>
@@ -232,9 +245,14 @@ module.exports = React.createClass({
             
             buttons.push(<div className="postBtn reorder" onClick={this.order} key="postOptReorder">{this.state.ordering ? 'Done Ordering' : 'Reorder'}</div>);
             buttons.push(<div className="postBtn delete" onClick={this.delete} key="postOptDelete">{this.state.deleting ? 'Delete All' : 'Delete'}</div>);
+            buttons.push(<div className="postBtn editStatus" onClick={this.startEdit} key="postOptEditStatus">{ this.state.deleting ? 'Done Deleting' : 'Cancel Editing' }</div>);
+            
+            tags = <TagInput tags={p.tags} onChange={this.changeTags} />;
         }
-        else
+        else {
+            buttons.push(<div className="postBtn editStatus" onClick={this.startEdit} key="postOptEditStatus">Edit</div>);
             title = <h2 id={'postTitle_'+p._id} onClick={this.editTitle}><Link href={ link } dangerouslySetInnerHTML={{__html:p.title}} /></h2>;
+        }
           
         var ordering = this.state.ordering ? this.reOrderBlock : function() { return false; }
           , deleting = this.state.deleting ? this.deleteBlock : function() { return false; };
@@ -242,17 +260,17 @@ module.exports = React.createClass({
         var blocks = (p.body||[]).map(function(part,partNo) {
             switch(part.type) {
                 case 'md':
-                    if(!this.props.user && part.content.indexOf('<span class="mltplaceholder">')===0) {
+                    if(!this.state.isEditing && part.content.indexOf('<span class="mltplaceholder">')===0) {
                         return;
                     }
                     return (
-                     <Editable key={ partNo } editable={!!this.props.user} ordering={ordering(partNo)} deleting={deleting(partNo)} options={{ id: p._id, fieldName: 'body.'+partNo, block: part, save: this.saveBlock }}>
+                     <Editable key={ partNo } editable={!!this.state.isEditing} ordering={ordering(partNo)} deleting={deleting(partNo)} options={{ id: p._id, fieldName: 'body.'+partNo, block: part, save: this.saveBlock }}>
                          <Markdown md={decodePost(part.content)} />
                      </Editable>
                     );
             }
         }.bind(this));
-                             
+
         return this.transferPropsTo(
             <div className={classes} id={postId}>
                 { title }
@@ -261,6 +279,7 @@ module.exports = React.createClass({
                 </div>
                 { blocks }
                 { addBlock }
+                { tags }
             </div>
         );
     }
