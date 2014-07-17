@@ -70,7 +70,6 @@ module.exports = React.createClass({
           pages = <p>Loading...</p>;
         else
           pages = this.state.pages.map(function(p,pi) {
-              console.log(p);
               return <li key={pi}><Link href={'/'+p.uri.replace(/\.html$/,'')}>{ p.title || '['+p.type+']' }</Link></li>;
           });
           

@@ -18,6 +18,23 @@ function moveTo(array,from,to) {
   array.splice(to, 0, array.splice(from, 1)[0]);
 }
 
+/*
+<div className="addBlockOption" id="addBlock_imgs">
+    Image Gallery
+</div>
+<div className="addBlockOption" id="addBlock_vid">
+    Video
+</div>
+<div className="addBlockOption" id="addBlock_file">
+    File Attachment
+</div>
+<div className="addBlockOption" id="addBlock_files">
+    File List
+</div>
+<div className="addBlockOption" id="addBlock_form">
+    Form
+</div>*/
+
 module.exports = React.createClass({
     
     mixins: [
@@ -86,7 +103,7 @@ module.exports = React.createClass({
         var currentPost = this.state.post || this.props.data,
             type = event.target.id.replace(/^addBlock_/,'');
             
-        currentPost.body.push({ type: type, content: this.noTextContent });
+        currentPost.body.push({ type: type, content: type=='md' ? this.noTextContent : '' });
             
         this.setState({
             adding: false,
@@ -101,7 +118,7 @@ module.exports = React.createClass({
           , field = Utils.dotGet(currentPost, data.field);
           
         field.content = data.content;
-        if(!data.content)
+        if(data.type=='md' && !data.content)
             field.content = this.noTextContent;
             
         this.setState({
@@ -214,21 +231,6 @@ module.exports = React.createClass({
                         <div className="addBlockOption" id="addBlock_img">
                             Image
                         </div>
-                        <div className="addBlockOption" id="addBlock_imgs">
-                            Image Gallery
-                        </div>
-                        <div className="addBlockOption" id="addBlock_vid">
-                            Video
-                        </div>
-                        <div className="addBlockOption" id="addBlock_file">
-                            File Attachment
-                        </div>
-                        <div className="addBlockOption" id="addBlock_files">
-                            File List
-                        </div>
-                        <div className="addBlockOption" id="addBlock_form">
-                            Form
-                        </div>
                     </div>
                 );
             else
@@ -268,6 +270,15 @@ module.exports = React.createClass({
                          <Markdown md={decodePost(part.content)} />
                      </Editable>
                     );
+                case 'div':
+                  return <div className="readmoreBlock"></div>;
+                case 'img':
+                  var img = part.content ? <img src={part.content} /> : <p>UPLOAD AN IMAGE!</p>;
+                  return (
+                    <Editable key={ partNo } editable={!!this.state.isEditing} ordering={ordering(partNo)} deleting={deleting(partNo)} options={{ id: p._id, fieldName: 'body.'+partNo, block: part, save: this.saveBlock }}>
+                      { img }
+                    </Editable>
+                  );
             }
         }.bind(this));
 
